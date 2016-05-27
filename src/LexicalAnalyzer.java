@@ -1,11 +1,16 @@
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.TransformerConfigurationException;
+import javax.xml.transform.TransformerException;
 import java.io.*;
 import java.util.*;
 
 public class LexicalAnalyzer {
     String text;
-    private ArrayList<Integer> LexTab = new ArrayList<Integer>(); //for lexems
-    private ArrayList<TSymbol> ConstTab = new ArrayList<TSymbol>(); //from 501
-    private ArrayList<TSymbol> IdentTab = new ArrayList<TSymbol>(); //from 1001
+    String textname;
+    FileInputStream fileInput;
+    private ArrayList<Integer> LexTab = new ArrayList<Integer>();
+    private ArrayList<TSymbol> ConstTab = new ArrayList<TSymbol>();
+    private ArrayList<TSymbol> IdentTab = new ArrayList<TSymbol>();
     private ArrayList<TSymbol> KeyTab = new ArrayList<TSymbol>(Arrays.asList(new TSymbol[]
             {
                     new TSymbol("PROGRAM", 401),
@@ -20,13 +25,6 @@ public class LexicalAnalyzer {
                     new TSymbol("EXT",410),
                     new TSymbol("..", 411)
             }));
-    /* 0 - whitespace
-           1 - const
-           2 - ident
-           3 - symbol start comment
-           4 - delim
-           5 - array identifier
-        */
     private ArrayList<AttrSymbol> AttrTab = new ArrayList<AttrSymbol>(Arrays.asList(new AttrSymbol[]
             {
                     new AttrSymbol(9, 0),
@@ -40,8 +38,8 @@ public class LexicalAnalyzer {
                     new AttrSymbol(38, 4),
                     new AttrSymbol(39, 4),
                     new AttrSymbol(40, 3),
-                    new AttrSymbol(41, 4),
-                    new AttrSymbol(42, 4),
+                    new AttrSymbol(41, 3),
+                    new AttrSymbol(42, 3),
                     new AttrSymbol(43, 4),
                     new AttrSymbol(44, 4),
                     new AttrSymbol(45, 4),
@@ -96,7 +94,7 @@ public class LexicalAnalyzer {
                     new AttrSymbol(94, 4),
                     new AttrSymbol(95, 4),
                     new AttrSymbol(96, 4),
-                    new AttrSymbol(97, 4),
+                    new AttrSymbol(97, 2),
                     new AttrSymbol(98, 2),
                     new AttrSymbol(99, 2),
                     new AttrSymbol(100, 2),
@@ -128,9 +126,22 @@ public class LexicalAnalyzer {
                     new AttrSymbol(126, 4)
             }));
 
-    public AttrSymbol Gets(int index){
+    public LexicalAnalyzer(String textname){
+        this.textname = textname;
+    }
+
+    public AttrSymbol Geti(int index) throws IOException {
+        char c = '0';
+        int r = 0;
         AttrSymbol Result = new AttrSymbol();
-        Result.setValue((short) text.charAt((index)));
+
+        for(int i = 0; i <= index; i++) {
+            r = fileInput.read();
+            if (i == index) {
+                c = (char) r;
+            }
+        }
+        Result.setValue(c);
 
         for (AttrSymbol theKey : AttrTab) {
             if (theKey.getValue() == Result.getValue()) {
@@ -149,6 +160,18 @@ public class LexicalAnalyzer {
             }
         }
         return res;
+    }
+
+    public AttrSymbol Gets(int index) {
+        AttrSymbol Result = new AttrSymbol();
+        Result.setValue((short) text.charAt((index)));
+
+        for (AttrSymbol theKey : AttrTab) {
+            if (theKey.getValue() == Result.getValue()) {
+                Result.setAttr(theKey.getAttr());
+            }
+        }
+        return Result;
     }
 
 
@@ -193,6 +216,26 @@ public class LexicalAnalyzer {
         }
     }
 
+    public String getText() throws IOException {
+        BufferedReader br = new BufferedReader(new FileReader(textname));
+        try {
+            StringBuilder sb = new StringBuilder();
+            String line = br.readLine();
+
+            while (line != null) {
+                sb.append(line);
+                sb.append("\n");
+                line = br.readLine();
+            }
+            text = sb.toString();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            br.close();
+        }
+        return text;
+    }
+
     public void IdnTabForm(String word){
         if (IdentTab.isEmpty()) {
             TSymbol tempVar3 = new TSymbol();
@@ -209,95 +252,22 @@ public class LexicalAnalyzer {
         }
     }
 
-    private void ERROR(int codeERR)
-    {
-        if (codeERR == 1)
-        {
-            System.out.println("Illegal symbol");
-        }
-        if (codeERR == 2)
-        {
-            System.out.println("No such identifier exists");
-        }
-        if (codeERR == 3)
-        {
-            System.out.println("No such attribute exists");
-        }
-        if (codeERR == 4)
-        {
-            System.out.println("Directive PROCEDURE is missing");
-        }
-        if (codeERR == 5)
-        {
-            System.out.println("; is missed");
-        }
-        if (codeERR == 6)
-        {
-            System.out.println("BEGIN is missed");
-        }
-        if (codeERR == 7)
-        {
-            System.out.println("END is missed");
-        }
-        if (codeERR == 8)
-        {
-            System.out.println("VAR is missed");
-        }
-        if (codeERR == 9)
-        {
-            System.out.println("No symbols between begin and end");
-        }
-        if (codeERR == 10)
-        {
-            System.out.println(") is missed");
-        }
-        if (codeERR == 11)
-        {
-            System.out.println("( is missed");
-        }
-        if (codeERR == 12)
-        {
-            System.out.println("*) is missed");
-        }
-        if (codeERR == 13)
-        {
-            System.out.println(", is missed");
-        }
-        if (codeERR == 14)
-        {
-            System.out.println(": is missed");
-        }
-        if (codeERR == 15)
-        {
-            System.out.println(". is missed");
-        }
-
-        System.out.println("Parsing was stopped by a mistake");
-    }
-
 
     private void Scanner() throws IOException {
+        text = getText();
         AttrSymbol symbol = new AttrSymbol();
         int lexCode = 0;
         String buff = "";
         boolean SuppressOutput;
 
-        BufferedReader br = new BufferedReader(new FileReader("test.txt"));
-        try {
-            StringBuilder sb = new StringBuilder();
-            String line = br.readLine();
-
-            while (line != null) {
-                sb.append(line);
-                sb.append("\n");
-                line = br.readLine();
-            }
-            text = sb.toString();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            br.close();
+        fileInput = new FileInputStream(textname);
+        int r;
+        int textlength= 0;
+        while ((r = fileInput.read()) != -1) {
+           textlength++;
         }
+
+
 
 
         int i = 0;
@@ -384,7 +354,7 @@ public class LexicalAnalyzer {
                                 }
                             }
                             if (i == text.length()) {
-                                ERROR(12);
+                                Error.output(12);
                             }
                             break;
 
@@ -397,18 +367,20 @@ public class LexicalAnalyzer {
                             if (symbol.getValue() == 41) {
                                 SuppressOutput = true;
                             } else {
-                                ERROR(12);
+                                Error.output(12);
                             }
                         }
                         SuppressOutput = true;
                         i++;
                     } else {
                         lexCode = 40;
+                        System.out.println("Illegal symbol");
                     }
                 }
 
                 break;
                 case 4: {
+
                     lexCode = (short) symbol.getValue();
                     i++;
                 }
@@ -423,12 +395,17 @@ public class LexicalAnalyzer {
                         lexCode = 411;
                         i++;
                     } else {
-                        ERROR(15);
+                        SuppressOutput = false;
+                        i--;
+                        lexCode = 46;
+                        i++;
                     }
                 }
                 break;
                 default:
+                    symbol= Gets(i);
                     System.out.print("Illegal symbol");
+
                     break;
             }
             if (SuppressOutput != true) {
@@ -451,9 +428,15 @@ public class LexicalAnalyzer {
         }
     }
 
-    public static void main(String[] args) throws IOException {
-        LexicalAnalyzer lexicalAnalyzer = new LexicalAnalyzer();
+    public static void main(String[] args) throws IOException, ParserConfigurationException, TransformerException {
+//        BufferedReader bufferRead = new BufferedReader(new InputStreamReader(System.in));
+//        System.out.println("Enter file name: ");
+//        String name = bufferRead.readLine();
+
+        LexicalAnalyzer lexicalAnalyzer = new LexicalAnalyzer("test.txt");
         lexicalAnalyzer.Scanner();
+        KnuthAnalyzer syntaxAnalyzer = new KnuthAnalyzer(lexicalAnalyzer.LexTab, lexicalAnalyzer.ConstTab, lexicalAnalyzer.IdentTab, lexicalAnalyzer.KeyTab, lexicalAnalyzer.AttrTab);
+        syntaxAnalyzer.analyzeKnuth();
         System.out.println(lexicalAnalyzer.text);
     }
 }
